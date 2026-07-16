@@ -142,8 +142,10 @@ func (r *Reader) Read(data []byte) (int, error) {
 		nr += cr
 		r.csize -= cr
 
-		if hasZero(data[:cr]) {
+		if i := bytes.IndexByte(data[:cr], 0); i >= 0 {
 			// Validity check: none of the bytes we consumed should be zero.
+			// Clip the overage out of the result.
+			nr -= (cr - i)
 			return nr, ErrUnexpectedNUL
 		}
 		if errors.Is(err, io.EOF) {
@@ -158,9 +160,6 @@ func (r *Reader) Read(data []byte) (int, error) {
 	}
 	return nr, nil
 }
-
-// hasZero reports whether data contains any zero byte.
-func hasZero(data []byte) bool { return bytes.IndexByte(data, 0) >= 0 }
 
 // firstZero reports the offset after the first zero byte in data, or len(data)
 // if there are no zero bytes in data.
@@ -355,14 +354,16 @@ func Decode(dst, src []byte) ([]byte, error) {
 		if bs == 0 {
 			return dst, ErrEndOfRecord
 		} else if bs > len(src) {
+			dst = append(dst, src[1:]...) // whatever is left
 			return dst, fmt.Errorf("missing %d bytes at EOF: %w", bs-len(src), io.ErrUnexpectedEOF)
 		}
 		first, rest := src[1:bs], src[bs:]
-		if hasZero(first) {
+		if i := bytes.IndexByte(first, 0); i >= 0 {
+			dst = append(dst, first[:i]...)
 			return dst, ErrUnexpectedNUL
 		}
 		dst = append(dst, first...)
-		if len(rest) != 0 && len(first) != maxBlockSize {
+		if len(rest) != 0 && rest[0] != 0 && len(first) != maxBlockSize {
 			dst = append(dst, 0)
 		}
 		src = rest

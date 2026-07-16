@@ -298,3 +298,44 @@ func TestEncoding(t *testing.T) {
 		}
 	})
 }
+
+func TestErrors(t *testing.T) {
+	full := strings.Repeat("X", 254)
+	tests := []struct {
+		input string
+		want  string
+		err   error
+	}{
+		{"\x00", "", cobs.ErrEndOfRecord},
+		{"\x01\x00", "", cobs.ErrEndOfRecord},
+		{"\x01\x01\x00", "\x00", cobs.ErrEndOfRecord},
+		{"\x04abc\x00", "abc", cobs.ErrEndOfRecord},
+		{"\x04pd", "pd", io.ErrUnexpectedEOF},
+		{"\x06apple\x05pea", "apple\x00pea", io.ErrUnexpectedEOF},
+		{"\x05a\x00bc", "a", cobs.ErrUnexpectedNUL},
+		{"\xff" + full[:len(full)-5], full[:len(full)-5], io.ErrUnexpectedEOF},
+		{"\xff" + full + "\x03a\x00", full + "a", cobs.ErrUnexpectedNUL},
+	}
+	t.Run("Decode", func(t *testing.T) {
+		for _, tc := range tests {
+			dec, err := cobs.Decode(nil, []byte(tc.input))
+			if !errors.Is(err, tc.err) {
+				t.Errorf("Decode %q: got error %v, want %v", tc.input, err, tc.err)
+			}
+			if string(dec) != tc.want {
+				t.Errorf("Decode %q output: got %q, want %q", tc.input, dec, tc.want)
+			}
+		}
+	})
+	t.Run("Reader", func(t *testing.T) {
+		for _, tc := range tests {
+			got, err := io.ReadAll(cobs.NewReader(strings.NewReader(tc.input)))
+			if !errors.Is(err, tc.err) {
+				t.Errorf("Read %q: got error %v, want %v", tc.input, err, tc.err)
+			}
+			if string(got) != tc.want {
+				t.Errorf("Read %q output: got %q, want %q", tc.input, got, tc.want)
+			}
+		}
+	})
+}
