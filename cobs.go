@@ -76,12 +76,12 @@ import (
 // to a COBS record.
 const maxBlockSize = 254
 
-// ErrUnexpectedNUL is a sentinel error reported by a [Reader] when it
-// encounters a NUL (0) byte in then encoded input.
+// ErrUnexpectedNUL is a sentinel error reported by [Reader.Read] or [Decode]
+// when it encounters a NUL (0) byte in then encoded input.
 var ErrUnexpectedNUL = errors.New("unexpected zero byte")
 
-// ErrEndOfRecord is a sentinel error reported by a [Reader] when it encounters
-// a NUL (0) byte at the end of a record.
+// ErrEndOfRecord is a sentinel error reported by [Reader.Read] or [Decode]
+// when it encounters a NUL (0) byte at the end of a record.
 var ErrEndOfRecord = errors.New("end of record")
 
 // A Reader reads and decodes COBS format data from an underlying [io.Reader].
