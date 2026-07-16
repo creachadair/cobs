@@ -210,8 +210,8 @@ func (w Writer) WriteRecord(do func(io.Writer) error) error {
 func (w Writer) ReadFrom(r io.Reader) (int64, error) {
 	var nw int64
 	err := w.WriteRecord(func(w io.Writer) error {
-		nc, err := io.Copy(w, r)
-		nw += nc
+		var err error
+		nw, err = io.Copy(w, r)
 		return err
 	})
 	return nw, err
