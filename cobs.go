@@ -240,10 +240,6 @@ func newRecordWriter(bw *bufio.Writer) *recordWriter {
 func (w *recordWriter) Write(data []byte) (int, error) {
 	var nw int
 	for len(data) != 0 {
-		// Calculate how much data we can add to the buffer before it is full or
-		// ends in a delimiter.
-		fz := firstZero(data)
-
 		// If the buffer is full, or if the data we have so far end in a
 		// delimiter, we have a block to write out.
 		if len(w.buf) == cap(w.buf) || (len(w.buf) != 0 && w.buf[len(w.buf)-1] == 0) {
@@ -253,6 +249,9 @@ func (w *recordWriter) Write(data []byte) (int, error) {
 		}
 
 		// A this point the buffer has space, and we have data to add.
+		// Calculate how much we can add to the buffer before it is full or
+		// ends in a delimiter.
+		fz := firstZero(data)
 		nc := min(cap(w.buf)-len(w.buf), fz)
 		w.buf = append(w.buf, data[:nc]...)
 		data = data[nc:]
