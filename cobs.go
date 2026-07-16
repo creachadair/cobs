@@ -244,23 +244,16 @@ func (w *recordWriter) Write(data []byte) (int, error) {
 		// ends in a delimiter.
 		fz := firstZero(data)
 
-		nc := min(cap(w.buf)-len(w.buf), fz)
-		for nc == 0 {
-			// The buffer is full; flush the now-complete block.
+		// If the buffer is full, or if the data we have so far end in a
+		// delimiter, we have a block to write out.
+		if len(w.buf) == cap(w.buf) || (len(w.buf) != 0 && w.buf[len(w.buf)-1] == 0) {
 			if err := w.flushBlock(); err != nil {
 				return nw, err
 			}
-			nc = min(cap(w.buf)-len(w.buf), fz)
 		}
 
 		// A this point the buffer has space, and we have data to add.
-		// If the data we have so far in a delimiter, we have a complete block.
-		if len(w.buf) != 0 && w.buf[len(w.buf)-1] == 0 {
-			if err := w.flushBlock(); err != nil {
-				return nw, err
-			}
-		}
-
+		nc := min(cap(w.buf)-len(w.buf), fz)
 		w.buf = append(w.buf, data[:nc]...)
 		data = data[nc:]
 		nw += nc
