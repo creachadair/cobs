@@ -142,12 +142,6 @@ func (r *Reader) Read(data []byte) (int, error) {
 		nr += cr
 		r.csize -= cr
 
-		if i := bytes.IndexByte(data[:cr], 0); i >= 0 {
-			// Validity check: none of the bytes we consumed should be zero.
-			// Clip the overage out of the result.
-			nr -= (cr - i)
-			return nr, ErrUnexpectedNUL
-		}
 		if errors.Is(err, io.EOF) {
 			if r.csize != 0 {
 				// Validity check: the last block should be complete.
@@ -155,6 +149,10 @@ func (r *Reader) Read(data []byte) (int, error) {
 			}
 		} else if err != nil {
 			return nr, err
+		}
+		if i := bytes.IndexByte(data[:cr], 0); i >= 0 {
+			// Validity check: none of the bytes we consumed should be zero.
+			return nr, ErrUnexpectedNUL
 		}
 		data = data[cr:]
 	}
@@ -358,11 +356,10 @@ func Decode(dst, src []byte) ([]byte, error) {
 			return dst, fmt.Errorf("missing %d bytes at EOF: %w", bs-len(src), io.ErrUnexpectedEOF)
 		}
 		first, rest := src[1:bs], src[bs:]
+		dst = append(dst, first...)
 		if i := bytes.IndexByte(first, 0); i >= 0 {
-			dst = append(dst, first[:i]...)
 			return dst, ErrUnexpectedNUL
 		}
-		dst = append(dst, first...)
 		if len(rest) != 0 && rest[0] != 0 && len(first) != maxBlockSize {
 			dst = append(dst, 0)
 		}

@@ -311,9 +311,9 @@ func TestErrors(t *testing.T) {
 		{"\x04abc\x00", "abc", cobs.ErrEndOfRecord},
 		{"\x04pd", "pd", io.ErrUnexpectedEOF},
 		{"\x06apple\x05pea", "apple\x00pea", io.ErrUnexpectedEOF},
-		{"\x05a\x00bc", "a", cobs.ErrUnexpectedNUL},
+		{"\x05a\x00bc", "a\x00bc", cobs.ErrUnexpectedNUL},
 		{"\xff" + full[:len(full)-5], full[:len(full)-5], io.ErrUnexpectedEOF},
-		{"\xff" + full + "\x03a\x00", full + "a", cobs.ErrUnexpectedNUL},
+		{"\xff" + full + "\x03a\x00", full + "a\x00", cobs.ErrUnexpectedNUL},
 	}
 	t.Run("Decode", func(t *testing.T) {
 		for _, tc := range tests {
