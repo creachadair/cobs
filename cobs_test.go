@@ -300,7 +300,6 @@ func TestEncoding(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	full := strings.Repeat("X", 254)
 	tests := []struct {
 		input string
 		want  string
