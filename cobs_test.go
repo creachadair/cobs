@@ -338,3 +338,44 @@ func TestErrors(t *testing.T) {
 		}
 	})
 }
+
+func TestDiscardUntilNUL(t *testing.T) {
+	junk := strings.Repeat("?", 5000) // longer than the default buffer size, 4096
+	input := "\x00\x06apple\x00\x0cdrag\x00nfruit" + junk + "\x05plum\x00\x07cherry\x06maple"
+	//     0-^    1--------^   2-------****---------- ... -----------^   3------------------^
+	// Record 0: Empty
+	// Record 1: Complete and correct, value "apple"
+	// Record 2: Invalid, contains an unquoted NUL (at ****) and other junk, not readable
+	// Record 3: Complete and correct, value "cherry\x00maple"
+	want := []string{"", "apple" /* ... no record 2 ... */, "cherry\x00maple"}
+
+	r := cobs.NewReader(strings.NewReader(input))
+	var got []string
+	for {
+		next, err := io.ReadAll(r)
+		if err == nil || errors.Is(err, cobs.ErrEndOfRecord) {
+			got = append(got, string(next))
+			if err == nil {
+				break
+			}
+			continue
+		}
+
+		if !errors.Is(err, cobs.ErrUnexpectedNUL) {
+			t.Fatalf("Unexpected error: %v", err)
+		} else if nb, derr := r.DiscardUntilNUL(); derr != nil {
+			t.Errorf("Discard failed: %v", derr)
+		} else if want := len(junk) + 6; nb != want {
+			t.Errorf("Discarded %d bytes, want %d", nb, want)
+		}
+	}
+
+	// After reading all the input, discard should do nothing and report io.EOF.
+	if nb, err := r.DiscardUntilNUL(); nb != 0 || err != io.EOF {
+		t.Errorf("DiscardUntiLNUL at end: got %d, %v; want 0, EOF", nb, err)
+	}
+
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("Decode (-got, +want):\n%s", diff)
+	}
+}

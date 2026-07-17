@@ -159,6 +159,30 @@ func (r *Reader) Read(data []byte) (int, error) {
 	return nr, nil
 }
 
+// DiscardUntilNUL consumes and discards input from the underlying reader until
+// a NUL (0) byte is observed or the input ends.  It reports the number of
+// bytes discarded, including the NUL. If it reaches the end of the input without
+// finding a NUL, it reports [io.EOF].
+//
+// The purpose of this method is to allow a reader to skip past invalid records
+// In Nul-delimited input stream. If it is called while in the middle of
+// reading a valid record, any remaining unread sections of that record are
+// also discarded.
+func (r *Reader) DiscardUntilNUL() (int, error) {
+	r.csize, r.wantz = 0, false
+	var nr int
+	for {
+		next, err := r.buf.ReadSlice(0)
+		nr += len(next)
+		if err == nil { // found a NUL
+			return nr, nil
+		} else if !errors.Is(err, bufio.ErrBufferFull) {
+			return nr, err
+		}
+		// no NUL yet, keep going
+	}
+}
+
 // firstZero reports the offset after the first zero byte in data, or len(data)
 // if there are no zero bytes in data.
 func firstZero(data []byte) int {
