@@ -165,7 +165,7 @@ func (r *Reader) Read(data []byte) (int, error) {
 // finding a NUL, it reports [io.EOF].
 //
 // The purpose of this method is to allow a reader to skip past invalid records
-// In Nul-delimited input stream. If it is called while in the middle of
+// in a NUL-delimited input stream. If it is called while in the middle of
 // reading a valid record, any remaining unread sections of that record are
 // also discarded.
 func (r *Reader) DiscardUntilNUL() (int, error) {
