@@ -196,6 +196,7 @@ func firstZero(data []byte) int {
 //
 // Use [Writer.WriteData] to write a slice of bytes as a single record.
 // Use [Writer.WriteRecord] to generate a record from a callback.
+// Use [Writer.ReadFrom] to generate a record from an [io.Reader].
 type Writer struct{ bw *bufio.Writer }
 
 // NewWriter constructs a new [Writer] that encodes data to w.
