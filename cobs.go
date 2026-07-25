@@ -186,20 +186,26 @@ func (r *Reader) DiscardUntilNUL() (int, error) {
 
 // Records returns an iterator over the records encoded in r. Each pair
 // reported by the iterator is either a valid record and a nil error, or an
-// empty or incomplete record and a non-nil error.
+// empty or incomplete record with a non-nil error.
+//
+// A record slice reported by the iterator is only valid for the duration of
+// the loop iteration to which it is delivered. If a record needs to be retained
+// across iterations or beyond the loop, the caller must make a copy.
 func (r *Reader) Records() iter.Seq2[[]byte, error] {
+	var buf bytes.Buffer
 	return func(yield func([]byte, error) bool) {
 		for {
-			next, err := io.ReadAll(r)
+			buf.Reset()
+			_, err := buf.ReadFrom(r)
 			if err == nil {
-				if len(next) != 0 {
-					yield(next, nil)
+				if buf.Len() != 0 {
+					yield(buf.Bytes(), nil) // non-empty record at EOF
 				}
 				return
 			} else if errors.Is(err, ErrEndOfRecord) {
 				err = nil // this is OK, the record is complete
 			}
-			if !yield(next, err) {
+			if !yield(buf.Bytes(), err) {
 				return
 			}
 		}
