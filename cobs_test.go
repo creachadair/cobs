@@ -124,8 +124,8 @@ func TestRoundTrip(t *testing.T) {
 		dst = append(dst, 0)
 	}
 	w.WriteNUL()
-	dst = append(dst, 0)
-	want = append(want, "")
+	dst = append(dst, 0)    // plain bytes, for testing Decode
+	want = append(want, "") // expected output for all decodings
 
 	t.Logf("Input is %d records totaling %d bytes", len(want), inSize)
 	t.Logf("Writer output is %d bytes", buf.Len())
@@ -134,39 +134,66 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("Encoding lengths differ: %d from writer, %d from encode", buf.Len(), len(dst))
 	}
 
-	var got []string
-	r := cobs.NewReader(&buf)
-	for {
-		next, err := io.ReadAll(r)
-		if err == nil {
-			break // end of input, via io.EOF consumed in io.ReadAll
-		} else if !errors.Is(err, cobs.ErrEndOfRecord) {
-			t.Fatalf("Read failed: %v", err)
+	t.Run("Records", func(t *testing.T) {
+		var got []string
+		var i int
+		for next, err := range cobs.NewReader(bytes.NewReader(buf.Bytes())).Records() {
+			i++
+			if err != nil {
+				t.Errorf("record %d: %v", i, err)
+				continue
+			}
+			got = append(got, string(next))
 		}
-		got = append(got, string(next))
-
-		first, rest, _ := bytes.Cut(dst, []byte{0})
-		msg, err := cobs.Decode(nil, first)
-		if err != nil {
-			t.Errorf("Decode %q: unexpected error: %v", first, err)
-		} else if string(msg) != string(next) {
-			t.Errorf("Decode %q: got %q, want %q", first, msg, next)
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("Round trip result (-got, +want):\n%s", diff)
 		}
-		dst = rest
-	}
+	})
 
-	// Verify that we fully consumed all the input.
-	if buf.Len() != 0 {
-		t.Errorf("Found %d unconsumed bytes after reading: %q", buf.Len(), buf.Bytes())
-	}
-	if len(dst) != 0 {
-		t.Errorf("Found %d unconsumed bytes after decoding: %q", len(dst), dst)
-	}
+	t.Run("Decode", func(t *testing.T) {
+		var got []string
+		cur := dst
+		for len(cur) != 0 {
+			first, rest, _ := bytes.Cut(cur, []byte{0})
+			msg, err := cobs.Decode(nil, first)
+			if err != nil {
+				t.Errorf("Decode %q: unexpected error: %v", first, err)
+				break
+			}
+			got = append(got, string(msg))
+			cur = rest
+		}
+		if len(cur) != 0 {
+			t.Errorf("Found %d unconsumed bytes after decoding: %q", len(cur), cur)
+		}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("Round trip result (-got, +want):\n%s", diff)
+		}
+	})
 
-	// Verify that we got the same stuff we wrote in.
-	if diff := cmp.Diff(got, want); diff != "" {
-		t.Errorf("Round trip result (-got, +want):\n%s", diff)
-	}
+	t.Run("Read", func(t *testing.T) {
+		var got []string
+		r := cobs.NewReader(&buf)
+		for {
+			next, err := io.ReadAll(r)
+			if err == nil {
+				break // end of input, via io.EOF consumed in io.ReadAll
+			} else if !errors.Is(err, cobs.ErrEndOfRecord) {
+				t.Fatalf("Read failed: %v", err)
+			}
+			got = append(got, string(next))
+		}
+
+		// Verify that we fully consumed all the input.
+		if buf.Len() != 0 {
+			t.Errorf("Found %d unconsumed bytes after reading: %q", buf.Len(), buf.Bytes())
+		}
+
+		// Verify that we got the same stuff we wrote in.
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("Round trip result (-got, +want):\n%s", diff)
+		}
+	})
 }
 
 func TestReaderFrom(t *testing.T) {
@@ -351,23 +378,24 @@ func TestDiscardUntilNUL(t *testing.T) {
 
 	r := cobs.NewReader(strings.NewReader(input))
 	var got []string
-	for {
-		next, err := io.ReadAll(r)
-		if err == nil || errors.Is(err, cobs.ErrEndOfRecord) {
-			got = append(got, string(next))
-			if err == nil {
-				break
+	var nb int = -1
+	var derr error
+	for next, err := range r.Records() {
+		if errors.Is(err, cobs.ErrUnexpectedNUL) {
+			if nb >= 0 {
+				t.Fatal("Multiple broken regions in test input, weird")
 			}
+			nb, derr = r.DiscardUntilNUL()
 			continue
-		}
-
-		if !errors.Is(err, cobs.ErrUnexpectedNUL) {
+		} else if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		} else if nb, derr := r.DiscardUntilNUL(); derr != nil {
-			t.Errorf("Discard failed: %v", derr)
-		} else if want := len(junk) + 6; nb != want {
-			t.Errorf("Discarded %d bytes, want %d", nb, want)
 		}
+		got = append(got, string(next))
+	}
+
+	// Check that we hit the discard path.
+	if want := len(junk) + 6; derr != nil || nb != want {
+		t.Errorf("DiscardUntilNUL: got %d, %v; want %d, nil", nb, derr, want)
 	}
 
 	// After reading all the input, discard should do nothing and report io.EOF.

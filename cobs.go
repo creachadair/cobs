@@ -70,6 +70,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 )
 
 // maxBlockSize is the size in bytes of the largest block that can be written
@@ -180,6 +181,28 @@ func (r *Reader) DiscardUntilNUL() (int, error) {
 			return nr, err
 		}
 		// no NUL yet, keep going
+	}
+}
+
+// Records returns an iterator over the records encoded in r. Each pair
+// reported by the iterator is either a valid record and a nil error, or an
+// empty or incomplete record and a non-nil error.
+func (r *Reader) Records() iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
+		for {
+			next, err := io.ReadAll(r)
+			if err == nil {
+				if len(next) != 0 {
+					yield(next, nil)
+				}
+				return
+			} else if errors.Is(err, ErrEndOfRecord) {
+				err = nil // this is OK, the record is complete
+			}
+			if !yield(next, err) {
+				return
+			}
+		}
 	}
 }
 
