@@ -31,6 +31,11 @@
 //	   return err
 //	})
 //
+// Or use [Writer.ReadFrom] to write the complete contents of an [io.Reader] as
+// a single record:
+//
+//	_, err := rw.ReadFrom(r)
+//
 // To append the encoding of a single record to a slice, use [Encode]:
 //
 //	enc := cobs.Encode(nil, input)
@@ -45,7 +50,14 @@
 //	record, err := io.ReadAll(r)
 //
 // See the [Reader.Read] documentation for specific details on how [Reader]
-// handles delimiters in its input.
+// handles delimiters in its input. Use [Reader.Records] to iterate:
+//
+//	for next, err := range r.Records() {
+//	   if err != nil {
+//	      log.Fatal(err)
+//	   }
+//	   doSomethingWith(next)
+//	}
 //
 // To append the decoding of a single record to a slice, use [Decode]:
 //
