@@ -189,8 +189,10 @@ func (r *Reader) DiscardUntilNUL() (int, error) {
 // empty or incomplete record with a non-nil error.
 //
 // A record slice reported by the iterator is only valid for the duration of
-// the loop iteration to which it is delivered. If a record needs to be retained
-// across iterations or beyond the loop, the caller must make a copy.
+// the loop iteration to which it is delivered. If a record needs to be
+// retained across iterations or beyond the loop, the caller must make a copy.
+// It is safe to modify the contents of the record slice, but any such
+// modifications will not be retained beyond the current iteration.
 func (r *Reader) Records() iter.Seq2[[]byte, error] {
 	var buf bytes.Buffer
 	return func(yield func([]byte, error) bool) {
