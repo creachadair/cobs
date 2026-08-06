@@ -61,10 +61,11 @@
 //
 // To append the decoding of a single record to a slice, use [Decode]:
 //
-//	dec, err := cobs.Decode(nil, input)
+//	dec, rest, err := cobs.Decode(nil, input)
 //
-// In case of error, [Decode] returns as much of the input as it was able to
-// successfully decode, along with the error.
+// This returns the decoded record and the remaining unconsumed suffix of src,
+// if any. In case of error, [Decode] returns as much of the input as it was
+// able to successfully decode, along with the error.
 //
 // # Implementation Notes
 //
@@ -402,8 +403,9 @@ func EncodingLen(data []byte) int {
 	return size
 }
 
-// Decode decodes src as a COBS record and appends the result to dst, returning
-// the resulting slice.
+// Decode decodes a prefix of src as a single COBS record and appends the
+// result to dst, returning the resulting decoded slice and the remaining
+// unconsumed suffix of src, or nil.
 //
 // Decode reports [ErrUnexpectedNUL] if it observes a NUL (0) byte within the
 // encoded input. If it encounters a NUL (0) byte at the end of a complete (or
@@ -413,27 +415,28 @@ func EncodingLen(data []byte) int {
 //
 // If dst has sufficient capacity for the decoded result, Decode does not
 // allocate memory.  A destination buffer as big as the input is always
-// sufficient.  The src and dst must not overlap.
-func Decode(dst, src []byte) ([]byte, error) {
+// sufficient.  The src and dst slices must not overlap. The rest resultis
+// either a slice into src, or nil.
+func Decode(dst, src []byte) (dec, rest []byte, _ error) {
 	for len(src) != 0 {
 		bs := int(src[0])
 		if bs == 0 {
-			return dst, ErrEndOfRecord
+			return dst, src, ErrEndOfRecord
 		} else if bs > len(src) {
 			dst = append(dst, src[1:]...) // whatever is left
-			return dst, fmt.Errorf("missing %d bytes at EOF: %w", bs-len(src), io.ErrUnexpectedEOF)
+			return dst, nil, fmt.Errorf("missing %d bytes at EOF: %w", bs-len(src), io.ErrUnexpectedEOF)
 		}
 		first, rest := src[1:bs], src[bs:]
 		dst = append(dst, first...)
 		if i := bytes.IndexByte(first, 0); i >= 0 {
-			return dst, ErrUnexpectedNUL
+			return dst, rest, ErrUnexpectedNUL
 		}
 		if len(rest) != 0 && rest[0] != 0 && len(first) != maxBlockSize {
 			dst = append(dst, 0)
 		}
 		src = rest
 	}
-	return dst, nil
+	return dst, src, nil
 }
 
 // MaxEncodingLen reports the maximum possible length of a COBS encoding of an

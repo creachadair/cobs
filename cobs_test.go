@@ -89,12 +89,15 @@ func TestDecoding(t *testing.T) {
 	})
 	t.Run("Decode", func(t *testing.T) {
 		for _, tc := range tests {
-			got, err := cobs.Decode(nil, []byte(tc.input))
+			got, rest, err := cobs.Decode(nil, []byte(tc.input))
 			if err != nil {
 				t.Fatalf("Decode %q: unexpected error: %v", tc.input, err)
 			}
 			if string(got) != tc.want {
 				t.Errorf("Decode %q:\n got %q,\nwant %q", tc.input, got, tc.want)
+			}
+			if len(rest) != 0 {
+				t.Errorf("Decode %q: unconsumed data: %q", tc.input, rest)
 			}
 		}
 	})
@@ -154,11 +157,21 @@ func TestRoundTrip(t *testing.T) {
 		var got []string
 		cur := dst
 		for len(cur) != 0 {
-			first, rest, _ := bytes.Cut(cur, []byte{0})
-			msg, err := cobs.Decode(nil, first)
-			if err != nil {
+			// Cut the string at the first NUL byte, to check that decoding stops
+			// at the expected place.
+			first, rest, ok := bytes.Cut(cur, []byte{0})
+			if !ok {
+				rest = first // at EOF
+			}
+			msg, mtail, err := cobs.Decode(nil, cur)
+			if errors.Is(err, cobs.ErrEndOfRecord) {
+				mtail = mtail[1:] // drop the NUL implied by this error
+			} else if err != nil {
 				t.Errorf("Decode %q: unexpected error: %v", first, err)
 				break
+			}
+			if !bytes.Equal(mtail, rest) {
+				t.Errorf("Decode %q tail: got %q, want %q", first, mtail, rest)
 			}
 			got = append(got, string(msg))
 			cur = rest
@@ -211,9 +224,12 @@ func TestReaderFrom(t *testing.T) {
 	t.Logf("Input:   %q (%d bytes)", input, len(input))
 	t.Logf("Encoded: %q (%d bytes)", buf.Bytes(), buf.Len())
 
-	dec, err := cobs.Decode(nil, buf.Bytes())
+	dec, rest, err := cobs.Decode(nil, buf.Bytes())
 	if err != nil {
 		t.Errorf("Decode: unexpected error: %v", err)
+	}
+	if len(rest) != 0 {
+		t.Errorf("Decode: unconsumed bytes after decoding: %q", rest)
 	}
 	if string(dec) != input {
 		t.Errorf("Decode: got %q, want %q", dec, input)
@@ -345,7 +361,7 @@ func TestErrors(t *testing.T) {
 	}
 	t.Run("Decode", func(t *testing.T) {
 		for _, tc := range tests {
-			dec, err := cobs.Decode(nil, []byte(tc.input))
+			dec, _, err := cobs.Decode(nil, []byte(tc.input))
 			if !errors.Is(err, tc.err) {
 				t.Errorf("Decode %q: got error %v, want %v", tc.input, err, tc.err)
 			}
