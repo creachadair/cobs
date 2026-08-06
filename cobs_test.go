@@ -283,7 +283,8 @@ func TestEncoding(t *testing.T) {
 		{"\x00\x00quince\x00\x00", "\x01\x01\x07quince\x01\x01"},
 
 		// Full-length blocks (254 bytes).
-		{full, "\xff" + full}, // note omitted trailer (permitted)
+		{full, "\xff" + full}, // note omitted trailer
+		{full + full, "\xff" + full + "\xff" + full},
 
 		// A full-length block does not imply a trailing zero, so if the input
 		// has a zero following a full block, it must be explicitly encoded.
