@@ -289,6 +289,10 @@ func TestEncoding(t *testing.T) {
 		{"apple\x00", "\x06apple\x01"},
 		{"\x00pear", "\x01\x05pear"},
 
+		// Test vector from §3.2.
+		{"\x45\x00\x00\x2c\x4c\x79\x00\x00\x40\x06\x4f\x37",
+			"\x02\x45\x01\x04\x2c\x4c\x79\x01\x05\x40\x06\x4f\x37"},
+
 		// Zeroes in the middle.
 		{"apple\x00pear\x00quince", "\x06apple\x05pear\x07quince"},
 
@@ -338,6 +342,9 @@ func TestEncoding(t *testing.T) {
 			}
 			if string(got) != tc.want {
 				t.Errorf("Encode %q: got %q, want %q", tc.input, got, tc.want)
+			}
+			if cmp := mustRead(t, string(got)); cmp != tc.input {
+				t.Errorf("Round trip %q:\ngot  %q,\nwant %q", got, cmp, tc.input)
 			}
 		}
 	})
