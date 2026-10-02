@@ -415,7 +415,7 @@ func EncodingLen(data []byte) int {
 //
 // If dst has sufficient capacity for the decoded result, Decode does not
 // allocate memory.  A destination buffer as big as the input is always
-// sufficient.  The src and dst slices must not overlap. The rest resultis
+// sufficient.  The src and dst slices must not overlap. The rest result is
 // either a slice into src, or nil.
 func Decode(dst, src []byte) (dec, rest []byte, _ error) {
 	for len(src) != 0 {
