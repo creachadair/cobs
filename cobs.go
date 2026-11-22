@@ -428,7 +428,7 @@ func Decode(dst, src []byte) (dec, rest []byte, _ error) {
 		}
 		first, rest := src[1:bs], src[bs:]
 		dst = append(dst, first...)
-		if i := bytes.IndexByte(first, 0); i >= 0 {
+		if found := bytes.Contains(first, []byte{0}); found {
 			return dst, rest, ErrUnexpectedNUL
 		}
 		if len(rest) != 0 && rest[0] != 0 && len(first) != maxBlockSize {
